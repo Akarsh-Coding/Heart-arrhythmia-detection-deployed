@@ -19,7 +19,8 @@ def load_record_beats(record_id, data_dir=config.DATA_DIR):
     signal = record.p_signal[:, channel]
     
     # Z-score standardization
-    signal = (signal - np.mean(signal)) / (np.std(signal) + 1e-8)
+    std = np.std(signal)
+    signal = (signal - np.mean(signal)) / (std if std > 1e-6 else 1.0)
     
     half_window = config.WINDOW_SIZE // 2
     beats,labels = [], []
@@ -33,6 +34,8 @@ def load_record_beats(record_id, data_dir=config.DATA_DIR):
                 beat_segment = signal[start:end]
                 beats.append(beat_segment)
                 labels.append(config.CLASS_TO_INDEX[symbol])
+    if len(beats) == 0: 
+        return np.empty((0, config.WINDOW_SIZE), dtype=np.float32), np.empty((0,), dtype=np.int32)
     return np.array(beats, dtype=np.float32), np.array(labels, dtype=np.int32)
 
 def load_split(record_list):
@@ -42,7 +45,8 @@ def load_split(record_list):
         beats, labels = load_record_beats(record_id)
         all_beats.append(beats)
         all_labels.append(labels)
-    
+    if not all_beats: 
+        raise ValueError(f"No valid heartbeat segments found for records: {record_list}")
     X = np.concatenate(all_beats, axis=0)
     y = np.concatenate(all_labels, axis=0)
     return np.expand_dims(X, axis=-1), y  # Add channel dimension for CNN input
