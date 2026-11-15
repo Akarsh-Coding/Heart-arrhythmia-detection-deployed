@@ -22,8 +22,8 @@ def channel_attention(x):
 
 
 def build_mshan(input_shape=config.WINDOW_SIZE, num_classes=config.NUM_CLASSES):
-    inputs = layers.Input(shape=(input_shape, 1))
-    
+    inputs = layers.Input(shape=input_shape, name="ecg_input")
+
     #Multi-Scale stage 1 (Kernels: 7, 13, 19)
     c1_7 = layers.Conv1D( 32, 7, padding='same', activation='relu')(inputs)
     c1_13 = layers.Conv1D(32, 13, padding='same', activation='relu')(inputs)
