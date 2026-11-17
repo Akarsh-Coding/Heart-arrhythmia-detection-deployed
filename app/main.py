@@ -11,6 +11,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 
 from ml import config
+from ml.preprocessing import normalize_beat
+from ml.artifacts import validate_metadata
 from app.schemas import (
     HeartbeatInput,
     BatchHeartbeatInput,
@@ -36,18 +38,14 @@ ml_models = {}
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     model_path = Path(config.MODEL_DIR) / "best_mshan_model.keras"
-    if not model_path.exists():
-        print(f"[!] Warning: Model not found at '{model_path}'")
-        ml_models["mshan"] = None
-    else:
-        print(f"[*] Loading MSHAN model from '{model_path}'...")
-        ml_models["mshan"] = tf.keras.models.load_model(str(model_path))
-        
-        # --- Warmup Pass ---
-        print("[*] Warming up TensorFlow engine...")
-        dummy_input = np.zeros((1, config.WINDOW_SIZE, 1), dtype=np.float32)
-        _ = ml_models["mshan"].predict(dummy_input, verbose=0)
-        print("[+] MSHAN model loaded & warmed up successfully.")
+    ml_models["mshan"] = None
+    try:
+        validate_metadata(model_path)
+        model = tf.keras.models.load_model(str(model_path))
+        model.predict(np.zeros((1, config.WINDOW_SIZE, 1), dtype=np.float32), verbose=0)
+        ml_models["mshan"] = model
+    except (ValueError, OSError) as exc:
+        print(f"Model unavailable: {exc}")
 
     yield
     ml_models.clear()
@@ -74,11 +72,7 @@ app.add_middleware(
 
 def preprocess_signal(signal_list: list) -> np.ndarray:
     """Standardizes signal to zero-mean and unit variance, reshaping for 1D CNN."""
-    arr = np.array(signal_list, dtype=np.float32)
-    std = np.std(arr)
-    if std > 1e-6:
-        arr = (arr - np.mean(arr)) / std
-    return arr.reshape(1, config.WINDOW_SIZE, 1)
+    return normalize_beat(signal_list).reshape(1, config.WINDOW_SIZE, 1)
 
 
 @app.get("/health", response_model=HealthResponse, tags=["Monitoring"])
@@ -202,6 +196,7 @@ def explain_heartbeat(input_data: HeartbeatInput):
         class_name=CLASS_NAMES.get(pred_class, "Unknown Arrhythmia"),
         confidence=float(probs[pred_idx]),
         probabilities=prob_dict,
-        shap_values=attribution,
+        attribution_values=attribution,
+        attribution_method="input_x_gradient",
         baseline_time_index=list(range(config.WINDOW_SIZE))
     )

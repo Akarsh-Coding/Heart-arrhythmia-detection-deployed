@@ -10,6 +10,7 @@ import shap
 import tensorflow as tf
 
 from ml import config
+from ml.artifacts import validate_metadata
 from ml.dataset import load_split
 
 REPORTS_DIR = Path(config.REPORTS_DIR)
@@ -22,6 +23,7 @@ def run_explainability(n_background=50, n_explain=30):
         raise FileNotFoundError(f"Model checkpoint not found at: {model_path}")
 
     print(f"[*] Loading trained MSHAN model from: {model_path}")
+    validate_metadata(model_path)
     model = tf.keras.models.load_model(str(model_path))
 
     print("[*] Loading sample test beats from DS2...")
@@ -29,10 +31,11 @@ def run_explainability(n_background=50, n_explain=30):
 
     # Sample background distribution & evaluation batch
     np.random.seed(config.RANDOM_SEED)
-    bg_idx = np.random.choice(len(X_test), n_background, replace=False)
     exp_idx = np.random.choice(len(X_test), n_explain, replace=False)
 
-    background = X_test[bg_idx]
+    X_train, _ = load_split(config.DS1_TRAIN_RECORDS[:3])
+    bg_idx = np.random.choice(len(X_train), n_background, replace=False)
+    background = X_train[bg_idx]
     samples_to_explain = X_test[exp_idx]
 
     print("[*] Computing SHAP values using GradientExplainer (TF2 / GRU compatible)...")

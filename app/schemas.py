@@ -3,7 +3,9 @@ app/schemas.py
 Pydantic data models for FastAPI request and response validation.
 """
 from typing import List, Optional, Dict
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
+import math
+from ml import config
 
 
 class HeartbeatInput(BaseModel):
@@ -14,13 +16,16 @@ class HeartbeatInput(BaseModel):
     signal: List[float] = Field(
         ...,
         description="Normalized 1D ECG amplitude values (360 samples at 360 Hz).",
-        example=[0.05 * i for i in range(360)]
+        json_schema_extra={"example": [0.05 * i for i in range(360)]}
     )
 
-    @validator("signal")
+    @field_validator("signal")
+    @classmethod
     def validate_signal_length(cls, v):
-        if len(v) != 360:
+        if len(v) != config.WINDOW_SIZE:
             raise ValueError(f"Signal must contain exactly 360 samples, received {len(v)} samples.")
+        if not all(math.isfinite(value) for value in v):
+            raise ValueError("Signal samples must be finite.")
         return v
 
 
@@ -45,9 +50,10 @@ class ExplainResponse(BaseModel):
     class_name: str
     confidence: float
     probabilities: Dict[str, float]
-    shap_values: List[float] = Field(
+    attribution_method: str
+    attribution_values: List[float] = Field(
         ...,
-        description="Temporal SHAP attribution values across each of the 360 time samples."
+        description="Input-times-gradient attribution values across each of the 360 time samples."
     )
     baseline_time_index: List[int] = Field(
         ...,

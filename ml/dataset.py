@@ -4,8 +4,8 @@ Segmentation, normalization, and balanced loading.
 """
 import numpy as np
 import wfdb
-from sklearn.utils import resample
 from ml import config
+from ml.preprocessing import normalize_beat
 
 def load_record_beats(record_id, data_dir=config.DATA_DIR):
     record_path = f"{data_dir}/{record_id}"
@@ -18,10 +18,6 @@ def load_record_beats(record_id, data_dir=config.DATA_DIR):
         channel = record.sig_name.index('MLII')
     signal = record.p_signal[:, channel]
     
-    # Z-score standardization
-    std = np.std(signal)
-    signal = (signal - np.mean(signal)) / (std if std > 1e-6 else 1.0)
-    
     half_window = config.WINDOW_SIZE // 2
     beats,labels = [], []
     
@@ -31,7 +27,7 @@ def load_record_beats(record_id, data_dir=config.DATA_DIR):
             end = r_peak + half_window
             
             if start >= 0 and end <= len(signal):
-                beat_segment = signal[start:end]
+                beat_segment = normalize_beat(signal[start:end])
                 beats.append(beat_segment)
                 labels.append(config.CLASS_TO_INDEX[symbol])
     if len(beats) == 0: 
@@ -45,7 +41,7 @@ def load_split(record_list):
         beats, labels = load_record_beats(record_id)
         all_beats.append(beats)
         all_labels.append(labels)
-    if not all_beats: 
+    if not all_beats or not any(len(beats) for beats in all_beats):
         raise ValueError(f"No valid heartbeat segments found for records: {record_list}")
     X = np.concatenate(all_beats, axis=0)
     y = np.concatenate(all_labels, axis=0)
@@ -53,20 +49,22 @@ def load_split(record_list):
 
 def balance_train_split(X_train, y_train , seed=config.RANDOM_SEED):
     """
-    Oversamples training classes upto majority class frequency.
-    Applied exclusively on training partition. 
+    Preserve all original beats and add minority copies to the majority count.
+    Apply exclusively to the training partition after validation assignment.
     """
+    X_train, y_train = np.asarray(X_train), np.asarray(y_train)
+    if y_train.ndim != 1 or len(X_train) != len(y_train):
+        raise ValueError('Training inputs and one-dimensional labels must have equal lengths.')
     classes, counts = np.unique(y_train, return_counts=True)
+    if not np.array_equal(classes, np.arange(config.NUM_CLASSES)):
+        raise ValueError('Training partition must contain all configured classes.')
     max_count = np.max(counts)
-        
-    X_bal, y_bal = [], []
-    for cls in classes:
-        mask = (y_train == cls)
-        X_res, y_res = resample(X_train[mask], y_train[mask], replace=True, n_samples=max_count, random_state=seed)
-        X_bal.append(X_res)
-        y_bal.append(y_res)
-    
-    X_bal = np.concatenate(X_bal, axis=0)
-    y_bal = np.concatenate(y_bal, axis=0)
-    idx = np.random.permutation(len(y_bal))
-    return X_bal[idx], y_bal[idx]
+    rng = np.random.default_rng(seed)
+    indices = [np.arange(len(y_train))]
+    for cls, count in zip(classes, counts):
+        if count < max_count:
+            indices.append(rng.choice(np.flatnonzero(y_train == cls),
+                                      size=int(max_count - count), replace=True))
+    selected = np.concatenate(indices)
+    rng.shuffle(selected)
+    return X_train[selected], y_train[selected]

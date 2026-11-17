@@ -166,7 +166,7 @@ if nav == "Single Heartbeat Diagnosis":
         time_axis = np.arange(360)
         ax.plot(time_axis, signal_data, color='#2c3e50', lw=1.8, label="Lead II Signal")
         ax.axvline(x=180, color='#e74c3c', linestyle='--', label="Annotated R-Peak (Sample 180)")
-        ax.set_xlabel("Sample Index (-180 to +180 ms around R-peak)")
+        ax.set_xlabel("Sample Index (R-peak at 180; 360 Hz)")
         ax.set_ylabel("Normalized Amplitude (Z-score)")
         ax.grid(True, linestyle="--", alpha=0.5)
         ax.legend(loc="upper right")
@@ -175,7 +175,7 @@ if nav == "Single Heartbeat Diagnosis":
     st.markdown("---")
 
     # Diagnostic Results & Explainability
-    if analyze_btn or 'last_signal' in st.session_state:
+    if analyze_btn:
         st.session_state['last_signal'] = signal_data
 
         try:
@@ -215,13 +215,13 @@ if nav == "Single Heartbeat Diagnosis":
                     st.bar_chart(prob_df.set_index('Class'), height=220)
 
                 with res_col2:
-                    st.subheader("Sample-Level Temporal Attributions")
+                    st.subheader("Sample-Level Attributions (Input × Gradient)")
                     st.markdown(
                         "Highlights specific morphological features (P-wave, QRS, T-wave) "
                         "driving the prediction (**red**: positive weight, **blue**: negative weight)."
                     )
 
-                    shap_vals = np.array(res["shap_values"])
+                    shap_vals = np.array(res["attribution_values"])
                     fig_attr, ax_attr = plt.subplots(figsize=(10, 4.2))
                     colors = ['#e74c3c' if v > 0 else '#3498db' for v in shap_vals]
                     ax_attr.bar(time_axis, shap_vals, color=colors, width=1.0)
@@ -305,7 +305,7 @@ elif nav == "Model Performance & Reports":
     st.title("Model Performance & Reports")
     st.markdown("Evaluations generated on the held-out **DS2 Inter-Patient Test Set**.")
 
-    reports_dir = Path(__file__).resolve().parent.parent / "reports"
+    reports_dir = Path(__file__).resolve().parent.parent / "reports" / "nlrav_v1"
     metrics_file = reports_dir / "evaluation_metrics.json"
 
     if metrics_file.exists():
