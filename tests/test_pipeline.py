@@ -27,7 +27,7 @@ def test_segmentation_labels_and_serving_preprocessing(monkeypatch):
 def test_validation_never_contains_oversampled_training_beats():
     y = np.repeat(np.arange(5), [10,15,20,25,30])
     X = np.arange(len(y))[:, None]
-    for train, val in training_folds(y):
+    for train, val in training_folds(y, np.tile(["patient_a", "patient_b"], len(y) // 2)):
         balanced, labels = balance_train_split(X[train], y[train])
         assert not set(balanced.ravel()) & set(X[val].ravel())
         assert len(set(np.bincount(labels))) == 1

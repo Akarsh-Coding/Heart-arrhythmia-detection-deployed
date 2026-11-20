@@ -34,18 +34,41 @@ def load_record_beats(record_id, data_dir=config.DATA_DIR):
         return np.empty((0, config.WINDOW_SIZE), dtype=np.float32), np.empty((0,), dtype=np.int32)
     return np.array(beats, dtype=np.float32), np.array(labels, dtype=np.int32)
 
-def load_split(record_list):
-    all_beats, all_labels = [], []
+def load_split(record_list, return_groups=False):
+    all_beats, all_labels, all_groups = [], [], []
     
     for record_id in record_list:
         beats, labels = load_record_beats(record_id)
         all_beats.append(beats)
         all_labels.append(labels)
+        all_groups.extend([patient_id(record_id)] * len(labels))
     if not all_beats or not any(len(beats) for beats in all_beats):
         raise ValueError(f"No valid heartbeat segments found for records: {record_list}")
     X = np.concatenate(all_beats, axis=0)
     y = np.concatenate(all_labels, axis=0)
-    return np.expand_dims(X, axis=-1), y  # Add channel dimension for CNN input
+    result = (np.expand_dims(X, axis=-1), y)
+    return (*result, np.asarray(all_groups)) if return_groups else result
+
+
+def patient_id(record_id):
+    return '201_202' if str(record_id) in {'201', '202'} else str(record_id)
+
+
+def stratified_sample_indices(labels, size, seed=config.RANDOM_SEED):
+    """Sample every class without replacement for explainability, not evaluation."""
+    labels = np.asarray(labels)
+    if size < config.NUM_CLASSES or size > len(labels):
+        raise ValueError('Sample size must cover all classes and not exceed available beats.')
+    rng = np.random.default_rng(seed)
+    pools = [rng.permutation(np.flatnonzero(labels == i)).tolist() for i in range(config.NUM_CLASSES)]
+    if any(not pool for pool in pools):
+        raise ValueError('Explainability sampling requires every configured class.')
+    selected = []
+    while len(selected) < size:
+        for pool in pools:
+            if pool and len(selected) < size:
+                selected.append(pool.pop())
+    return np.asarray(selected)
 
 def balance_train_split(X_train, y_train , seed=config.RANDOM_SEED):
     """

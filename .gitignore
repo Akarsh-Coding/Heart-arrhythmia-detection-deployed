@@ -6,3 +6,36 @@ __pycache__/
 .ipynb_checkpoints/
 results/
 .pytest_cache/
+
+# Downloaded datasets, model weights, generated reports and exports
+/models/
+/reports/
+/uploads/
+/outputs/
+/colab/*.zip
+*.keras
+*.h5
+*.hdf5
+*.ckpt*
+*.zip
+
+# Local credentials, tools, caches and editor state
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+.aws/
+.codex/
+.idea/
+.vscode/
+*.log
+*.tmp
+.coverage*
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+build/
+dist/
+*.egg-info/
+Thumbs.db
+.DS_Store

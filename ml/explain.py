@@ -5,19 +5,21 @@ Uses shap.GradientExplainer for full TensorFlow 2.x and GRU compatibility.
 """
 from pathlib import Path
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import shap
 import tensorflow as tf
 
 from ml import config
 from ml.artifacts import validate_metadata
-from ml.dataset import load_split
+from ml.dataset import load_split, stratified_sample_indices
 
 REPORTS_DIR = Path(config.REPORTS_DIR)
 REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def run_explainability(n_background=50, n_explain=30):
+def run_explainability(n_background=50, n_explain=30, integration_samples=200):
     model_path = Path(config.MODEL_DIR) / "best_mshan_model.keras"
     if not model_path.exists():
         raise FileNotFoundError(f"Model checkpoint not found at: {model_path}")
@@ -27,29 +29,29 @@ def run_explainability(n_background=50, n_explain=30):
     model = tf.keras.models.load_model(str(model_path))
 
     print("[*] Loading sample test beats from DS2...")
-    X_test, y_test = load_split(config.DS2_TEST_RECORDS[:3])
+    X_test, y_test = load_split(config.DS2_TEST_RECORDS)
 
     # Sample background distribution & evaluation batch
     np.random.seed(config.RANDOM_SEED)
-    exp_idx = np.random.choice(len(X_test), n_explain, replace=False)
+    exp_idx = stratified_sample_indices(y_test, n_explain)
 
-    X_train, _ = load_split(config.DS1_TRAIN_RECORDS[:3])
-    bg_idx = np.random.choice(len(X_train), n_background, replace=False)
+    X_train, y_train = load_split(config.TRAIN_RECORDS)
+    bg_idx = stratified_sample_indices(y_train, n_background)
     background = X_train[bg_idx]
     samples_to_explain = X_test[exp_idx]
 
     print("[*] Computing SHAP values using GradientExplainer (TF2 / GRU compatible)...")
     # Use GradientExplainer to bypass TensorListStack GRU gradient overrides
     explainer = shap.GradientExplainer(model, background)
-    shap_values = explainer.shap_values(samples_to_explain)
+    shap_values = explainer.shap_values(samples_to_explain, nsamples=integration_samples, rseed=config.RANDOM_SEED)
 
     # Handle shape format across SHAP versions: list of (N, 360, 1) or ndarray (N, 360, 1, 5)
     if isinstance(shap_values, list):
         # shap_values is a list of length 5 (one array per class)
-        shap_by_class = [np.squeeze(s) for s in shap_values]
+        shap_by_class = [np.asarray(s).reshape(n_explain, config.WINDOW_SIZE) for s in shap_values]
     else:
         # Array shape: (n_explain, 360, 1, 5) -> transpose to list per class
-        shap_by_class = [np.squeeze(shap_values[..., i]) for i in range(config.NUM_CLASSES)]
+        shap_by_class = [np.asarray(shap_values[..., i]).reshape(n_explain, config.WINDOW_SIZE) for i in range(config.NUM_CLASSES)]
 
     time_steps = np.arange(config.WINDOW_SIZE)
 
@@ -60,7 +62,7 @@ def run_explainability(n_background=50, n_explain=30):
         plt.plot(time_steps, mean_abs, label=f"Class {cls_name}", lw=1.8)
 
     plt.axvline(x=180, color='red', linestyle='--', label='R-Peak Center (Index 180)')
-    plt.title("MSHAN Global Temporal Feature Attribution (SHAP)", fontsize=13)
+    plt.title("MSHAN Class-Balanced Sample Attribution (SHAP)", fontsize=13)
     plt.xlabel("Sample Index (-180 to +180 relative to R-peak)", fontsize=11)
     plt.ylabel("Mean |SHAP Value|", fontsize=11)
     plt.legend(loc="upper right")
@@ -101,7 +103,26 @@ def run_explainability(n_background=50, n_explain=30):
     plt.savefig(local_path, dpi=300)
     plt.close()
     print(f"[+] Saved local SHAP overlay to: {local_path}")
+    import json
+    from ml.artifacts import model_metadata
+    with open(REPORTS_DIR / 'shap_sampling.json', 'w') as f:
+        json.dump({'background_size': n_background, 'explained_size': n_explain,
+                   'background_class_counts': np.bincount(y_train[bg_idx], minlength=config.NUM_CLASSES).tolist(),
+                   'explained_class_counts': np.bincount(y_test[exp_idx], minlength=config.NUM_CLASSES).tolist(),
+                   'background_records': config.TRAIN_RECORDS,
+                   'explained_records': config.DS2_TEST_RECORDS,
+                   'integration_samples': integration_samples,
+                   'model_sha256': model_metadata(model_path)['sha256'],
+                   'note': 'Class-balanced explanatory sample, not a population-wide performance estimate.'}, f, indent=2)
 
 
 if __name__ == "__main__":
-    run_explainability()
+    import argparse
+    parser = argparse.ArgumentParser(description='Generate class-balanced SHAP sample reports')
+    parser.add_argument('--background', type=int, default=50)
+    parser.add_argument('--samples', type=int, default=30)
+    parser.add_argument('--integration-samples', type=int, default=200)
+    args = parser.parse_args()
+    if args.integration_samples < 1:
+        parser.error('integration-samples must be positive')
+    run_explainability(args.background, args.samples, args.integration_samples)
