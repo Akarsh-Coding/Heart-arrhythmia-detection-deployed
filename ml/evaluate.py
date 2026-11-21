@@ -7,6 +7,8 @@ import os
 import json
 from pathlib import Path
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import seaborn as sns
 import tensorflow as tf
@@ -162,6 +164,18 @@ def evaluate_model(model):
 
     print("[*] Calculating clinical diagnostic metrics...")
     metrics = compute_metrics(y_test, y_pred)
+    settings_path = config.MODEL_DIR / 'training' / 'settings.json'
+    if settings_path.exists():
+        settings = json.loads(settings_path.read_text())
+        metrics['protocol'] = settings.get('validation', 'Unspecified training protocol')
+        metrics['training_records'] = settings.get('ds1', [])
+    else:
+        metrics['protocol'] = 'Unknown training provenance'
+    model_path = config.MODEL_DIR / 'best_mshan_model.keras'
+    if model_path.exists():
+        from ml.artifacts import model_metadata
+        metrics['model_sha256'] = model_metadata(model_path)['sha256']
+    metrics['test_records'] = config.DS2_TEST_RECORDS
     metrics["classes"] = config.CLASSES
     metrics["preprocessing"] = config.PREPROCESSING
     metrics["Macro_AUC"] = round(float(macro_auc), 4)
