@@ -19,42 +19,18 @@ export default function AboutPage() {
         <Card
           icon={<Cpu size={18} />}
           title="The model"
-          text="A supervised classifier trained to distinguish five common rhythm classes from ECG-derived features and clinical parameters. The deployed artifact ships as a pickled model behind a Flask/FastAPI endpoint."
+          text="MSHAN, a Multi-Scale Hybrid Attention Network combining 1D convolutions, temporal and channel attention, and stacked GRUs. It classifies one 360-sample heartbeat into five MIT-BIH classes: N, L, R, A and V. It does not diagnose conditions such as atrial fibrillation."
         />
         <Card
           icon={<Database size={18} />}
           title="Training data"
-          text="Primarily derived from the MIT-BIH Arrhythmia Database, supplemented by feature engineering on RR / PR / QRS / QT intervals and selected clinical covariates."
+          text="Trained on the MIT-BIH Arrhythmia Database (PhysioNet). Beats are 360-sample windows around annotated R-peaks, MLII lead, sampled at 360 Hz, with per-beat z-score normalization."
         />
         <Card
           icon={<GitBranch size={18} />}
-          title="Current status"
-          text="This UI ships with a mock prediction service so the full flow can be reviewed while the backend is being finalized. Swap lib/mockApi.js for a fetch call once the inference endpoint is live."
+          title="How this app works"
+          text="This Next.js UI parses your uploaded beat in the browser and sends it to a FastAPI backend (POST /explain). The backend returns the predicted class, class probabilities, and an input-times-gradient attribution that the result page plots over the waveform."
         />
-      </div>
-
-      <div className="mt-10 rounded-2xl border border-slate-200 bg-slate-50 p-6">
-        <h2 className="text-base font-semibold text-slate-900">
-          Wiring up the real backend
-        </h2>
-        <p className="mt-2 text-sm text-slate-600">
-          Replace the mock call inside{" "}
-          <code className="rounded bg-white px-1.5 py-0.5 text-xs">
-            lib/mockApi.js
-          </code>{" "}
-          with something like:
-        </p>
-        <pre className="mt-3 overflow-x-auto rounded-lg bg-slate-900 p-4 text-xs leading-relaxed text-slate-100">
-{`export async function predictArrhythmia(input) {
-  const res = await fetch(process.env.NEXT_PUBLIC_API_URL + "/predict", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
-  if (!res.ok) throw new Error("Prediction failed");
-  return res.json();
-}`}
-        </pre>
       </div>
 
       <div className="mt-10 flex flex-wrap items-center gap-3">
@@ -63,7 +39,7 @@ export default function AboutPage() {
           <ArrowRight size={16} />
         </Link>
         <a
-          href="https://github.com/SahilInstinct/Heart-arrhythmia-detection-deployed"
+          href="https://github.com/Akarsh-Coding/Heart-arrhythmia-detection-deployed"
           target="_blank"
           rel="noopener noreferrer"
           className="btn-secondary"

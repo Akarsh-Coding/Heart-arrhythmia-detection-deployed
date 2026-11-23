@@ -28,9 +28,9 @@ export default function HomePage() {
                 in seconds
               </h1>
               <p className="mt-5 max-w-xl text-lg text-slate-600">
-                Upload an ECG reading or enter clinical parameters, and let our
-                machine-learning model flag abnormal rhythms — so clinicians
-                can intervene earlier.
+                Upload a single segmented ECG heartbeat and let our deep-learning
+                model (MSHAN) classify it, with an explanation of which parts of
+                the waveform drove the result.
               </p>
 
               <div className="mt-8 flex flex-wrap gap-3">
@@ -98,17 +98,17 @@ export default function HomePage() {
           <Feature
             icon={<Upload size={20} />}
             title="Flexible input"
-            text="Enter clinical parameters manually or upload an ECG CSV file for batch inference."
+            text="Upload one 360-sample heartbeat (MLII, 360 Hz) as a CSV, TXT, or JSON file."
           />
           <Feature
             icon={<Activity size={20} />}
             title="Multi-class detection"
-            text="Distinguishes between Normal, AFib, Ventricular Tachycardia, PVCs, and Bradycardia."
+            text="Classifies a beat as Normal, LBBB, RBBB, Atrial premature, or Ventricular premature."
           />
           <Feature
             icon={<LineChart size={20} />}
             title="Transparent results"
-            text="See per-class probabilities, risk level, and clinical notes alongside the prediction."
+            text="See per-class probabilities and a waveform with the influential samples highlighted."
           />
           <Feature
             icon={<ShieldCheck size={20} />}
@@ -144,12 +144,12 @@ export default function HomePage() {
             <Step
               step="01"
               title="Enter data"
-              text="Fill in heart rate, PR/QRS/QT intervals and other parameters, or upload an ECG recording."
+              text="Upload a segmented heartbeat file with 360 samples, R-peak at index 180."
             />
             <Step
               step="02"
               title="Run analysis"
-              text="The model processes the inputs and computes probabilities across rhythm classes."
+              text="The backend normalizes the beat and the model computes probabilities across five classes."
             />
             <Step
               step="03"
@@ -172,21 +172,20 @@ export default function HomePage() {
         <div className="grid gap-10 lg:grid-cols-2 lg:items-center">
           <div>
             <h2 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
-              Rhythms we screen for
+              Heartbeat types we classify
             </h2>
             <p className="mt-3 text-slate-600">
-              The current model is trained to distinguish five common rhythm
-              classes. More classes are coming as we expand our training
-              dataset.
+              The model is trained on the MIT-BIH Arrhythmia Database to
+              distinguish five heartbeat classes.
             </p>
 
             <ul className="mt-6 space-y-3">
               {[
-                "Normal Sinus Rhythm",
-                "Atrial Fibrillation (AFib)",
-                "Ventricular Tachycardia (VT)",
-                "Premature Ventricular Contraction (PVC)",
-                "Sinus Bradycardia",
+                "Normal beat (N)",
+                "Left bundle branch block beat (L)",
+                "Right bundle branch block beat (R)",
+                "Atrial premature beat (A)",
+                "Premature ventricular contraction (V)",
               ].map((c) => (
                 <li key={c} className="flex items-center gap-3">
                   <CheckCircle2
@@ -210,17 +209,16 @@ export default function HomePage() {
                   Ready to try it?
                 </div>
                 <div className="text-xs text-slate-500">
-                  Runs on sample ECG data when the backend is offline.
+                  Needs the FastAPI backend running.
                 </div>
               </div>
             </div>
             <p className="mt-5 text-sm text-slate-700">
-              The UI currently uses a mock prediction service so you can explore
-              the full flow while the real model is finalized. Swap it out in{" "}
+              This UI sends your heartbeat to the MSHAN FastAPI backend (set{" "}
               <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">
-                lib/mockApi.js
-              </code>{" "}
-              when the API endpoint is live.
+                NEXT_PUBLIC_API_URL
+              </code>
+              ) and shows the model's real prediction.
             </p>
             <Link href="/predict" className="btn-primary mt-6 w-full">
               Open the analyzer

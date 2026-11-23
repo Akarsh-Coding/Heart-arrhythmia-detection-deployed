@@ -13,7 +13,7 @@ import {
   Info,
   HeartPulse,
 } from "lucide-react";
-import EcgWave from "@/components/EcgWave";
+import BeatPlot from "@/components/BeatPlot";
 
 const RISK_META = {
   low: {
@@ -62,7 +62,7 @@ export default function ResultPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `cardiosense-report-${Date.now()}.json`;
+    a.download = `heartbeat-report-${Date.now()}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -117,10 +117,10 @@ export default function ResultPage() {
           <ArrowLeft size={14} />
           Back to analyzer
         </Link>
-        {result._demo && (
+        {result.source === "demo" && (
           <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800">
             <Info size={12} />
-            Demo result — backend not yet connected
+            Synthetic demo beat, not a real recording
           </div>
         )}
       </div>
@@ -136,7 +136,7 @@ export default function ResultPage() {
             </div>
             <div>
               <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                Predicted rhythm
+                Predicted heartbeat type
               </div>
               <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
                 {result.className}
@@ -177,23 +177,28 @@ export default function ResultPage() {
         </div>
       </div>
 
-      {/* ECG strip */}
+      {/* Heartbeat + attribution */}
       <div className="card mt-6">
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div>
             <h2 className="text-base font-semibold text-slate-900">
-              Representative ECG strip
+              Analyzed heartbeat
             </h2>
             <p className="text-sm text-slate-500">
-              Illustrative waveform for the predicted class.
+              Red shading marks the samples that influenced the prediction most
+              (input × gradient).
             </p>
           </div>
           <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
-            Lead II • 25 mm/s
+            MLII • 360 Hz • 360 samples
           </span>
         </div>
-        <div className="rounded-xl bg-primary-50/40 p-2">
-          <EcgWave className="h-36 w-full" />
+        <div className="rounded-xl bg-slate-50 p-2">
+          <BeatPlot
+            signal={result.signal}
+            attribution={result.attribution}
+            className="h-56 w-full"
+          />
         </div>
       </div>
 
@@ -203,7 +208,7 @@ export default function ResultPage() {
           Class probabilities
         </h2>
         <p className="text-sm text-slate-500">
-          How confident the model is across every supported rhythm.
+          How confident the model is across all five supported beat types.
         </p>
         <ul className="mt-5 space-y-3">
           {probs.map(([key, p], idx) => (
@@ -239,33 +244,18 @@ export default function ResultPage() {
         <h2 className="text-base font-semibold text-slate-900">
           Input summary
         </h2>
-        <p className="text-sm text-slate-500">
-          The data used to generate this result.
-        </p>
-        <dl className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {Object.entries(result.input || {})
-            .filter(([, v]) => v !== "" && v !== null && v !== undefined)
-            .map(([k, v]) => (
-              <div
-                key={k}
-                className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2"
-              >
-                <dt className="text-[11px] font-medium uppercase tracking-wider text-slate-500">
-                  {humanize(k)}
-                </dt>
-                <dd className="mt-0.5 text-sm font-medium text-slate-900 break-words">
-                  {String(v)}
-                </dd>
-              </div>
-            ))}
+        <dl className="mt-4 grid gap-3 sm:grid-cols-3">
+          <Info2 label="Source" value={result.source === "demo" ? "Synthetic demo" : "Uploaded file"} />
+          <Info2 label="File" value={result.fileName || "—"} />
+          <Info2 label="Samples" value={result.signal?.length ?? "—"} />
         </dl>
       </div>
 
       {/* Actions */}
       <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
         <p className="max-w-xl text-xs text-slate-500">
-          This output is advisory. It does not establish a diagnosis. Please
-          correlate clinically and refer to a cardiologist when indicated.
+          This output is advisory. It does not establish a diagnosis. This model classifies single heartbeats only.
+          Please correlate clinically and refer to a cardiologist when indicated.
         </p>
         <div className="flex flex-wrap gap-3">
           <button
@@ -318,9 +308,15 @@ function ConfidenceBar({ value }) {
   );
 }
 
-function humanize(key) {
-  return key
-    .replace(/([A-Z])/g, " $1")
-    .replace(/^./, (c) => c.toUpperCase())
-    .replace(/_/g, " ");
+function Info2({ label, value }) {
+  return (
+    <div className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+      <dt className="text-[11px] font-medium uppercase tracking-wider text-slate-500">
+        {label}
+      </dt>
+      <dd className="mt-0.5 break-words text-sm font-medium text-slate-900">
+        {String(value)}
+      </dd>
+    </div>
+  );
 }
